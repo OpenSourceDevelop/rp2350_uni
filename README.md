@@ -1,4 +1,4 @@
-# rp2350_uni Library 🚀
+# rp2350_uni Arduino Library 🚀
 
 A high-performance C++ header/CPP library for the **Raspberry Pi RP2040** and **RP2350**, optimized for the Arduino IDE and the Earle Philhower Core Framework.
 
