@@ -22,6 +22,10 @@ Built for maximum performance and reliability using **hardware PIO encapsulation
   * Direct acquisition of the internal RP2350 die temperature in °C via internal ADC.
   * Query system watchdog reboot causes.
   * Watchdog activation and re-feeding helper utilities.
+* **WS2812 Status LED Support:**
+  * Clean integration with standard NeoPixel / FastLED drivers.
+  * Global brightness scaling and color transformation helper routines.
+  * Non-blocking animation and FSM status indication examples.
 * **Modular & Clean C++ Architecture:**
   * Strict type safety using `constexpr` and `enum class`.
   * Designed for the [Earle Philhower RP2040/RP2350 Core](https://github.com/earlephilhower/arduino-pico).
@@ -39,5 +43,5 @@ rp2350_uni/
 │   └── rp2350_uni.cpp      # Driver & FSM implementation
 └── examples/
     ├── BasicEncoder/       # Hardware PIO Encoder & MCU Temp Sensor
-    ├── StatusLED/          # Non-blocking WS2812 FSM State Machine
-    └── RainbowEncoder/     # Interactive HSV Rainbow Rotator with Encoder
+    ├── StatusLED/          # Non-blocking WS2812 FSM State Machine with Brightness Control
+    └── RainbowEncoder/     # Interactive HSV Rainbow Rotator & Brightness Scaling
