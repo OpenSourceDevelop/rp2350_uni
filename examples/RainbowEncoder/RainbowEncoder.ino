@@ -1,117 +1,115 @@
 /**
  * @file    RainbowEncoder.ino
- * @brief   Interactive Rainbow Hue Rotator using PIO Encoder & Status LED
+ * @brief   Non-blocking HSV Rainbow Hue Selector using RP2350Uni PIO Encoder & APA-104 LED.
+ *          Configured for hardware setups with external pull-up resistors.
+ *          Includes Watchdog integration during fast encoder updates.
  * @author  OpenSourceDevelop
  */
 
 #include <Arduino.h>
 #include <rp2350_uni.h>
-#include <Adafruit_NeoPixel.h>
-#include <cmath>
 
 // ── HARDWARE DEFINITIONS ──
-constexpr uint8_t  PIN_LED        = 16;  // Onboard / WS2812 GPIO
-constexpr uint16_t NUM_LEDS       = 1;
-constexpr uint8_t  PIN_ENC_A      = 10;  // Phase B = GPIO 11
-constexpr uint8_t  PIN_ENC_BTN    = 12;
+constexpr uint8_t STATUS_LED_PIN = 16;  // Onboard APA-104 / WS2812 GPIO
+constexpr uint8_t PIN_ENC_A      = 10;  // Phase B = GPIO 11 (uses HW Pull-ups)
+constexpr uint8_t PIN_ENC_BTN    = 12;  // Button GPIO (uses HW Pull-up to 3.3V, active LOW)
 
-// ── COLOR & HSV CONFIGURATION ──
-constexpr uint8_t  LED_BRIGHTNESS = 40;  // Max brightness (0 - 255)
-constexpr int16_t  HUE_STEP_DEG   = 5;   // Hue change per encoder tick
-
-// ── OBJECTS ──
-Adafruit_NeoPixel strip(NUM_LEDS, PIN_LED, NEO_GRB + NEO_KHZ800);
 RP2350Uni::HardwarePIOEncoder encoder(PIN_ENC_A, PIN_ENC_BTN);
 
-static int16_t g_current_hue = 0; // Current hue in degrees (0 - 359)
+// Hue-Wert für den Farbkreis (0 - 359 Grad)
+static uint16_t g_hue = 0;
 
 /**
- * @brief Converts HSV parameters to 32-bit GRB NeoPixel color format.
- * @param h Hue angle in degrees [0, 360)
- * @param s Saturation [0.0, 1.0]
- * @param v Value / Brightness [0.0, 1.0]
- * @return Packed 32-bit uint32_t color in GRB format.
+ * @brief Converts HSV (Hue, Saturation, Value) to packed 32-bit GRB Color Format.
+ * @param h Hue angle [0 - 359]
+ * @param s Saturation [0.0 - 1.0]
+ * @param v Value/Brightness [0.0 - 1.0]
+ * @return Packed 32-bit GRB color for APA-104 / WS2812
  */
-uint32_t hsvToGRB(float h, float s, float v) {
+uint32_t hsvToGrb(uint16_t h, float s, float v) {
     float c = v * s;
-    float x = c * (1.0f - std::fabs(std::fmod(h / 60.0f, 2.0f) - 1.0f));
+    float x = c * (1.0f - fabsf(fmodf(h / 60.0f, 2.0f) - 1.0f));
     float m = v - c;
 
-    float r = 0.0f, g = 0.0f, b = 0.0f;
+    float r = 0, g = 0, b = 0;
 
-    if (h < 60.0f)        { r = c; g = x; b = 0; }
-    else if (h < 120.0f) { r = x; g = c; b = 0; }
-    else if (h < 180.0f) { r = 0; g = c; b = x; }
-    else if (h < 240.0f) { r = 0; g = x; b = c; }
-    else if (h < 300.0f) { r = x; g = 0; b = c; }
-    else                 { r = c; g = 0; b = x; }
+    if (h < 60)        { r = c; g = x; b = 0; }
+    else if (h < 120)  { r = x; g = c; b = 0; }
+    else if (h < 180)  { r = 0; g = c; b = x; }
+    else if (h < 240)  { r = 0; g = x; b = c; }
+    else if (h < 300)  { r = x; g = 0; b = c; }
+    else               { r = c; g = 0; b = x; }
 
-    uint8_t r_byte = static_cast<uint8_t>((r + m) * 255.0f);
-    uint8_t g_byte = static_cast<uint8_t>((g + m) * 255.0f);
-    uint8_t b_byte = static_cast<uint8_t>((b + m) * 255.0f);
+    uint8_t r8 = static_cast<uint8_t>((r + m) * 255.0f);
+    uint8_t g8 = static_cast<uint8_t>((g + m) * 255.0f);
+    uint8_t b8 = static_cast<uint8_t>((b + m) * 255.0f);
 
-    return (static_cast<uint32_t>(g_byte) << 16) | 
-           (static_cast<uint32_t>(r_byte) << 8)  | 
-            static_cast<uint32_t>(b_byte);
+    // Pack into GRB Byte-Order (Green, Red, Blue)
+    return (static_cast<uint32_t>(g8) << 16) | 
+           (static_cast<uint32_t>(r8) << 8)  | 
+            static_cast<uint32_t>(b8);
 }
 
 void setup() {
     Serial.begin(115200);
     while (!Serial && millis() < 2000);
 
-    // Initialize RP2350 peripherals & Watchdog
-    RP2350Uni::System::begin();
-    RP2350Uni::System::enableWatchdog(4000);
+    // Watchdog Reboot-Check
+    if (RP2350Uni::System::wasWatchdogReset()) {
+        Serial.println(F("[WARNING] System rebooted by Hardware Watchdog!"));
+    }
 
-    // Start hardware PIO quadrature encoder
+    // System & PIO LED Driver Initialisierung
+    RP2350Uni::System::begin(STATUS_LED_PIN);
+    RP2350Uni::System::setBrightness(40); // 0-255 Brightness Scale
+
+    // Watchdog mit 2000ms Timeout aktivieren
+    RP2350Uni::System::enableWatchdog(2000);
+
+    // Initialisierung des Encoders (deaktiviert interne Pull-ups für externe HW-Pull-ups)
     encoder.begin();
 
-    // Initialize NeoPixel Strip
-    strip.begin();
-    strip.setBrightness(LED_BRIGHTNESS);
-    
-    // Set initial color (Solid White indicator on boot)
-    strip.setPixelColor(0, strip.Color(255, 255, 255));
-    strip.show();
+    // Startfarbe setzen (Rot bei Hue = 0°)
+    RP2350Uni::System::setPixel(hsvToGrb(g_hue, 1.0f, 1.0f));
 
-    Serial.println(F("[RP2350_UNI] Rainbow Encoder Example Ready!"));
+    Serial.println(F("[RP2350_UNI] Rainbow Encoder Example Started."));
+    Serial.println(F("Rotate Encoder to adjust Hue (0-359°). Press Button to reset to Red."));
 }
 
 void loop() {
-    // Feed watchdog in main execution loop
-    RP2350Uni::System::feedWatchdog();
+    // Non-blocking FSM & Watchdog Feed
+    RP2350Uni::System::update();
 
-    // 1. Process PIO Encoder Delta
+    // 1. Encoder-Drehung auslesen & Hue anpassen
     int32_t delta = encoder.readDelta();
     if (delta != 0) {
-        g_current_hue += static_cast<int16_t>(delta * HUE_STEP_DEG);
+        // Watchdog explizit auch bei schnellen Encoder-Events nachfüttern
+        RP2350Uni::System::feedWatchdog();
 
-        // Keep Hue wrapped within [0, 360) range
-        if (g_current_hue >= 360) g_current_hue %= 360;
-        while (g_current_hue < 0) g_current_hue += 360;
+        // Hue im Bereich 0-359 Grad halten (5 Grad pro Raste)
+        int32_t newHue = static_cast<int32_t>(g_hue) + (delta * 5);
+        
+        if (newHue < 0) {
+            newHue = 360 + (newHue % 360);
+        }
+        g_hue = static_cast<uint16_t>(newHue % 360);
 
-        uint32_t colorGRB = hsvToGRB(static_cast<float>(g_current_hue), 1.0f, 1.0f);
-        strip.setPixelColor(0, colorGRB);
-        strip.show();
-
-        Serial.printf("[ENCODER] Hue: %d°\n", g_current_hue);
+        Serial.printf("Hue: %d° | Delta: %d\n", g_hue, delta);
+        
+        // APA-104 LED-Farbe direkt live aktualisieren
+        RP2350Uni::System::setPixel(hsvToGrb(g_hue, 1.0f, 1.0f));
     }
 
-    // 2. Process Button Events
+    // 2. Taster-Event auswerten
     RP2350Uni::HardwarePIOEncoder::ButtonEvent btn = encoder.updateButton();
-
     if (btn == RP2350Uni::HardwarePIOEncoder::ButtonEvent::SHORT_PRESS) {
-        g_current_hue = 0; // Reset back to Red (0°)
-        strip.setPixelColor(0, strip.Color(255, 255, 255)); // Flash White
-        strip.show();
-
-        Serial.println(F("[BUTTON] Short Press -> Reset Hue (Flash WHITE)"));
-    } 
+        g_hue = 0; // Reset auf Rot
+        Serial.println(F("Button Pressed -> Reset Hue to 0° (Red)"));
+        RP2350Uni::System::setPixel(hsvToGrb(g_hue, 1.0f, 1.0f));
+    }
     else if (btn == RP2350Uni::HardwarePIOEncoder::ButtonEvent::LONG_PRESS) {
-        float mcuTemp = RP2350Uni::System::readMcuTemperature();
-        strip.setPixelColor(0, strip.Color(0, 0, 255)); // Flash Blue
-        strip.show();
-
-        Serial.printf("[BUTTON] Long Press -> Core Temp: %.2f °C (Flash BLUE)\n", mcuTemp);
+        // Flash White zum Bestätigen des Long-Press & MCU-Temp anzeigen (Blinkt für 300ms)
+        RP2350Uni::System::setPixel(RP2350Uni::Color::WHITE, 300);
+        Serial.printf("Long Press -> MCU Temp: %.2f °C\n", RP2350Uni::System::readMcuTemperature());
     }
 }
