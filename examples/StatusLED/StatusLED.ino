@@ -1,20 +1,19 @@
 /**
  * @file    StatusLED.ino
- * @brief   Non-blocking FSM Status LED example for RP2350
+ * @brief   Non-blocking Status LED example for APA-104 using RP2350Uni static System interface
+ *          Configured for boards with external hardware pull-up resistors.
  * @author  OpenSourceDevelop
  */
 
 #include <Arduino.h>
 #include <rp2350_uni.h>
-#include <Adafruit_NeoPixel.h>
 
-// ── HARDWARE DEFINITIONEN ──
-constexpr uint8_t  PIN_LED        = 16;  // Standard RP2350 NeoPixel GPIO (oder je nach Board anpassen)
-constexpr uint16_t NUM_LEDS       = 1;
-constexpr uint8_t  PIN_ENC_A      = 10;
-constexpr uint8_t  PIN_ENC_BTN    = 12;
+// ── HARDWARE DEFINITIONS ──
+constexpr uint8_t STATUS_LED_PIN = 16;  // Onboard APA-104 / WS2812 GPIO
+constexpr uint8_t PIN_ENC_A      = 10;  // Phase B = GPIO 11 (uses HW Pull-ups)
+constexpr uint8_t PIN_ENC_BTN    = 12;  // Button GPIO (uses HW Pull-up to 3.3V, active LOW)
 
-// ── ENUMS FÜR SYSTEMZUSTAND ──
+// ── SYSTEM STATE ENUM ──
 enum class SystemStatus : uint8_t {
     IDLE = 0,
     HEATING,
@@ -22,89 +21,70 @@ enum class SystemStatus : uint8_t {
     ERROR
 };
 
-// ── OBJEKTE ──
-Adafruit_NeoPixel strip(NUM_LEDS, PIN_LED, NEO_GRB + NEO_KHZ800);
 RP2350Uni::HardwarePIOEncoder encoder(PIN_ENC_A, PIN_ENC_BTN);
-
 SystemStatus g_status = SystemStatus::IDLE;
 
-// ─────────────────────────────────────────────
-//  Non-Blocking LED FSM Engine
-// ─────────────────────────────────────────────
+/**
+ * @brief Updates status LED color based on system state
+ */
 void updateStatusLED(SystemStatus status) {
-    static uint32_t lastBlinkTime = 0;
-    static bool     blinkState    = false;
-    uint32_t now = millis();
-
     switch (status) {
         case SystemStatus::IDLE:
-            // Statisch Blau (Dimmed)
-            strip.setPixelColor(0, strip.Color(0, 50, 150));
+            // Static Dim Blue
+            RP2350Uni::System::setPixel(RP2350Uni::Color::BLUE);
             break;
 
         case SystemStatus::HEATING:
-            // Pulsieren / Blinken Gelb/Orange (500ms Intervall)
-            if (now - lastBlinkTime >= 500) {
-                lastBlinkTime = now;
-                blinkState = !blinkState;
-            }
-            if (blinkState) {
-                strip.setPixelColor(0, strip.Color(255, 140, 0));
-            } else {
-                strip.setPixelColor(0, strip.Color(40, 20, 0));
-            }
+            // Pulsing / Blinking Amber (500ms pulse interval)
+            RP2350Uni::System::setPixel(RP2350Uni::Color::AMBER, 500);
             break;
 
         case SystemStatus::READY:
-            // Statisch Grün
-            strip.setPixelColor(0, strip.Color(0, 200, 40));
+            // Static Solid Green
+            RP2350Uni::System::setPixel(RP2350Uni::Color::GREEN);
             break;
 
         case SystemStatus::ERROR:
-            // Schnelles Rot-Blinken (150ms Intervall)
-            if (now - lastBlinkTime >= 150) {
-                lastBlinkTime = now;
-                blinkState = !blinkState;
-            }
-            strip.setPixelColor(0, blinkState ? strip.Color(255, 0, 0) : strip.Color(0, 0, 0));
+            // Fast Flashing Red (150ms interval)
+            RP2350Uni::System::setPixel(RP2350Uni::Color::RED, 150);
             break;
     }
-
-    strip.show();
 }
 
-// ─────────────────────────────────────────────
-//  Setup & Loop
-// ─────────────────────────────────────────────
 void setup() {
     Serial.begin(115200);
     while (!Serial && millis() < 2000);
 
-    RP2350Uni::System::begin();
+    // Initialize System with internal APA-104 LED pin
+    RP2350Uni::System::begin(STATUS_LED_PIN);
+    RP2350Uni::System::setBrightness(30); // Brightness scale 0-255
     RP2350Uni::System::enableWatchdog(2000);
 
+    // Initialize Hardware PIO Encoder & Button (Floating INPUT for HW Pull-ups)
     encoder.begin();
 
-    strip.begin();
-    strip.setBrightness(50); // 0 - 255
-    strip.show();
+    // Initial LED State (Temporary White flash for 500ms on startup)
+    RP2350Uni::System::setPixel(RP2350Uni::Color::WHITE, 500);
 
-    Serial.println(F("[RP2350_UNI] Status LED FSM Example Started."));
+    Serial.println(F("[RP2350_UNI] Native APA-104 Status LED Example Started."));
     Serial.println(F("Press Button to cycle Status: IDLE -> HEATING -> READY -> ERROR"));
 }
 
 void loop() {
-    RP2350Uni::System::feedWatchdog();
+    // Non-blocking internal system update (LED animation FSM & Watchdog feed)
+    RP2350Uni::System::update();
 
-    // Button steuert den Systemzustand um
+    // Debouncing and event handler for hardware button
     RP2350Uni::HardwarePIOEncoder::ButtonEvent btn = encoder.updateButton();
+    
     if (btn == RP2350Uni::HardwarePIOEncoder::ButtonEvent::SHORT_PRESS) {
         uint8_t nextState = (static_cast<uint8_t>(g_status) + 1) % 4;
         g_status = static_cast<SystemStatus>(nextState);
         
         Serial.printf("New State: %d\n", static_cast<uint8_t>(g_status));
+        updateStatusLED(g_status);
+    } 
+    else if (btn == RP2350Uni::HardwarePIOEncoder::ButtonEvent::LONG_PRESS) {
+        Serial.printf("Core Temp: %.2f °C\n", RP2350Uni::System::readMcuTemperature());
     }
-
-    // LED State Machine im Haupt-Loop (Non-Blocking)
-    updateStatusLED(g_status);
 }
