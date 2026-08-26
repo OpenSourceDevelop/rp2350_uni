@@ -1,29 +1,42 @@
-# rp2350_uni Arduino Library 🚀
+# rp2350_uni
 
-A high-performance C++ header/CPP library for the **Raspberry Pi RP2040** and **RP2350**, optimized for the Arduino IDE and the Earle Philhower Core Framework.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Framework: Arduino](https://img.shields.io/badge/Framework-Arduino-00979D.svg)](https://www.arduino.cc/)
+[![Target: RP2350 / RP2040](https://img.shields.io/badge/Target-RP2350%2FRP2040-C60537.svg)](https://www.raspberrypi.com/)
 
-This library bundles essential hardware features such as **PIO Encoder Processing with Dynamic Acceleration**, **WS2812 Status LEDs**, **Watchdog Handling**, **ADC Measurements**, and **Button Debouncing** into a clean Singleton class.
+A universal, highly optimized C++ embedded helper library for Raspberry Pi **RP2350** (and RP2040) microcontrollers within the Arduino ecosystem.
 
----
-
-## 🛠️ Features
-
-* **WS2812 PIO Driver:** Direct bitbanging via PIO State Machine including global brightness control and an optional auto-off timer (`duration_ms`).
-* **Hardware PIO Quadrature Encoder:** High-precision sampling via PIO-FIFO with built-in dynamic rotation acceleration.
-* **Button Debouncer:** Event-based evaluation for short and long button presses (debounced).
-* **ADC & On-Core Temp:** Easy reading of analog pins and the MCU's internal core temperature.
-* **Watchdog Support:** Convenient setup and kicking directly inside the loop.
-* **Unified Logging System:** Prefix-based formatted logs (`LOG_INFO`, `LOG_WARNF`, etc.).
+Built for maximum performance and reliability using **hardware PIO encapsulation**, **fully non-blocking finite state machines (FSM)**, and a **type-safe API**.
 
 ---
 
-## 📁 Folder Structure
+## 🛠 Features
 
-To ensure the library links properly, place the files in your project directory as follows:
+* **Hardware PIO Quadrature Encoder:**
+  * Leverages RP2350 PIO State Machines to decode incremental rotary encoders.
+  * Zero CPU overhead for interrupt handling at high rotational speeds.
+  * Dynamic velocity acceleration curve.
+  * Integrated non-blocking button debouncing.
+  * Button event classification (`SHORT_PRESS`, `LONG_PRESS`).
+* **System & MCU Health:**
+  * Direct acquisition of the internal RP2350 die temperature in °C via internal ADC.
+  * Query system watchdog reboot causes.
+  * Watchdog activation and re-feeding helper utilities.
+* **Modular & Clean C++ Architecture:**
+  * Strict type safety using `constexpr` and `enum class`.
+  * Designed for the [Earle Philhower RP2040/RP2350 Core](https://github.com/earlephilhower/arduino-pico).
+
+---
+
+## 📁 Repository Structure
 
 ```text
-YourProject/
-├── YourProject.ino
-└── src/
-    ├── rp2350_uni.h
-    └── rp2350_uni.cpp
+rp2350_uni/
+├── library.properties      # Arduino Library Specification
+├── README.md               # Repository Documentation
+├── src/
+│   ├── rp2350_uni.h        # Doxygen-documented header file
+│   └── rp2350_uni.cpp      # Driver & FSM implementation
+└── examples/
+    ├── BasicEncoder/       # Example: Hardware PIO Encoder & Temp Sensor
+    └── StatusLED/          # Example: Non-blocking WS2812 FSM State Machine
