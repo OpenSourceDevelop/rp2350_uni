@@ -38,5 +38,6 @@ rp2350_uni/
 │   ├── rp2350_uni.h        # Doxygen-documented header file
 │   └── rp2350_uni.cpp      # Driver & FSM implementation
 └── examples/
-    ├── BasicEncoder/       # Example: Hardware PIO Encoder & Temp Sensor
-    └── StatusLED/          # Example: Non-blocking WS2812 FSM State Machine
+    ├── BasicEncoder/       # Hardware PIO Encoder & MCU Temp Sensor
+    ├── StatusLED/          # Non-blocking WS2812 FSM State Machine
+    └── RainbowEncoder/     # Interactive HSV Rainbow Rotator with Encoder
