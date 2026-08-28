@@ -19,6 +19,15 @@ static const struct pio_program ws2812_program = {
     .origin = -1,
 };
 
+uint System::pioFunc(PIO pio_block) {
+    if (pio_block == pio0) return GPIO_FUNC_PIO0;
+    if (pio_block == pio1) return GPIO_FUNC_PIO1;
+#if defined(GPIO_FUNC_PIO2) // pio2 gibt es nur auf RP2350, nicht auf RP2040
+    if (pio_block == pio2) return GPIO_FUNC_PIO2;
+#endif
+    return GPIO_FUNC_PIO0; // Fallback, sollte nie erreicht werden
+}
+
 void System::initSerial(uint32_t baud_rate) {
     Serial.begin(baud_rate);
     while (!Serial && millis() < 2000) {
@@ -52,7 +61,7 @@ void System::initWS2812PIO(uint ws2812_pin) {
     sm_config_set_clkdiv(&c, div);
 
     gpio_init(ws2812_pin);
-    gpio_set_function(ws2812_pin, (pio_inst_ == pio0) ? GPIO_FUNC_PIO0 : GPIO_FUNC_PIO1);
+    gpio_set_function(ws2812_pin, pioFunc(pio_inst_));
     pio_gpio_init(pio_inst_, ws2812_pin);
     pio_sm_set_consecutive_pindirs(pio_inst_, sm_, ws2812_pin, 1, true);
 
@@ -120,7 +129,7 @@ static const struct pio_program encoder_program = {
     .origin = -1,
 };
 
-void System::initEncoder(uint pin_a, uint8_t divisor, int8_t btn_pin, uint32_t short_press_ms, uint32_t long_press_ms, PIO pio_block, uint sm) {
+void System::initEncoder(uint pin_a, uint8_t divisor, int8_t btn_pin, uint32_t short_press_ms, uint32_t long_press_ms, bool btn_active_low, PIO pio_block, uint sm) {
     enc_pin_a_ = pin_a;
     quad_divisor_ = divisor;
     enc_pio_inst_ = pio_block;
@@ -133,8 +142,8 @@ void System::initEncoder(uint pin_a, uint8_t divisor, int8_t btn_pin, uint32_t s
     gpio_disable_pulls(pin_a);
     gpio_disable_pulls(pin_a + 1);
     
-    gpio_set_function(pin_a, (enc_pio_inst_ == pio0) ? GPIO_FUNC_PIO0 : GPIO_FUNC_PIO1);
-    gpio_set_function(pin_a + 1, (enc_pio_inst_ == pio0) ? GPIO_FUNC_PIO0 : GPIO_FUNC_PIO1);
+    gpio_set_function(pin_a, pioFunc(enc_pio_inst_));
+    gpio_set_function(pin_a + 1, pioFunc(enc_pio_inst_));
     pio_gpio_init(enc_pio_inst_, pin_a);
     pio_gpio_init(enc_pio_inst_, pin_a + 1);
 
@@ -162,6 +171,7 @@ void System::initEncoder(uint pin_a, uint8_t divisor, int8_t btn_pin, uint32_t s
         btn_pin_ = btn_pin;
         btn_short_press_ms_ = short_press_ms;
         btn_long_press_ms_ = long_press_ms;
+        btn_active_low_ = btn_active_low;
         pinMode(btn_pin_, INPUT);
         gpio_disable_pulls(btn_pin_);
         btn_initialized_ = true;
@@ -215,7 +225,7 @@ void System::resetEncoderCount(int32_t val) {
 void System::updateButton() {
     if (!btn_initialized_) return;
 
-    bool raw_state = (digitalRead(btn_pin_) == LOW); 
+    bool raw_state = btn_active_low_ ? (digitalRead(btn_pin_) == LOW) : (digitalRead(btn_pin_) == HIGH);
     unsigned long now = millis();
 
     if (raw_state != btn_last_state_) {

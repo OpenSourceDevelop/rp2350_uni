@@ -30,7 +30,7 @@ namespace Color {
     constexpr uint32_t MAGENTA    = 0x0000FFFF;
     constexpr uint32_t WHITE      = 0x00FFFFFF;
     constexpr uint32_t WARM_WHITE = 0x0080FF20;
-    constexpr uint32_t COLD_WHITE = 0x00FFFFE0;
+    constexpr uint32_t COLD_WHITE = 0x00E0E0FF; // G=0xE0, R=0xE0, B=0xFF -> Blau dominant
 }
 
 class System {
@@ -46,7 +46,7 @@ public:
     void setBrightnessPixel(uint8_t brightness);
     uint8_t getBrightnessPixel() const { return global_brightness_; }
 
-    void initEncoder(uint pin_a, uint8_t divisor = 4, int8_t btn_pin = -1, uint32_t short_press_ms = 50, uint32_t long_press_ms = 800, PIO pio_block = pio0, uint sm = 1);
+    void initEncoder(uint pin_a, uint8_t divisor = 4, int8_t btn_pin = -1, uint32_t short_press_ms = 50, uint32_t long_press_ms = 800, bool btn_active_low = true, PIO pio_block = pio0, uint sm = 1);
 
     void enableWatchdog(uint32_t delay_ms = 4000, bool pause_on_debug = true);
     void kickWatchdog();
@@ -89,9 +89,6 @@ private:
     int32_t last_reported_count_ = 0;
     uint8_t last_enc_state_ = 0;
     uint8_t quad_divisor_ = 4;
-    unsigned long last_step_time_ = 0;
-    uint32_t accel_threshold_ms_ = 70;
-    int32_t accel_multiplier_max_ = 40;
 
     int8_t btn_pin_ = -1;
     bool btn_initialized_ = false;
@@ -109,6 +106,7 @@ private:
     void updateButton();
     int32_t getPioRawCount();
     uint32_t scaleColor(uint32_t grb_color, uint8_t brightness);
+    static uint pioFunc(PIO pio_block);
 };
 
 } // namespace rp_help
