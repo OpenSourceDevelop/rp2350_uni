@@ -39,7 +39,7 @@ void loop() {
     // Encoder-Delta auslesen (gibt Schritte seit dem letzten Loop-Durchlauf zurück)
     int32_t delta = sys.readEncoderDelta();
     if (delta != 0) {
-        int32_t total = sys.RegelReadEncoderCount(); // Gesamten Zählerstand holen
+        int32_t total = sys.getEncoderCount(); // Gesamten Zählerstand holen
         LOG_INFOF("Encoder Delta: %d | Total: %d", delta, sys.getEncoderCount());
         
         // Optional: Kurzes optisches Feedback am LED
