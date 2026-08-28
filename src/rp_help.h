@@ -106,7 +106,7 @@ private:
     void updateButton();
     int32_t getPioRawCount();
     uint32_t scaleColor(uint32_t grb_color, uint8_t brightness);
-    static uint pioFunc(PIO pio_block);
+    static gpio_function_t pioFunc(PIO pio_block);
 };
 
 } // namespace rp_help

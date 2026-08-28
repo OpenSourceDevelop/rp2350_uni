@@ -19,7 +19,7 @@ static const struct pio_program ws2812_program = {
     .origin = -1,
 };
 
-uint System::pioFunc(PIO pio_block) {
+gpio_function_t System::pioFunc(PIO pio_block) {
     if (pio_block == pio0) return GPIO_FUNC_PIO0;
     if (pio_block == pio1) return GPIO_FUNC_PIO1;
 #if defined(GPIO_FUNC_PIO2) // pio2 gibt es nur auf RP2350, nicht auf RP2040
