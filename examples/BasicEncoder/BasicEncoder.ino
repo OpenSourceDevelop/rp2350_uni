@@ -1,6 +1,7 @@
 /**
  * @file    BasicEncoder.ino
  * @brief   Basic example for PIO quadrature encoder and button handling using rp_help
+ * @version 1.0
  */
 
 #include <Arduino.h>
