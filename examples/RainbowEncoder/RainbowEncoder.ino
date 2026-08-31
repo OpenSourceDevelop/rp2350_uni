@@ -1,3 +1,9 @@
+/**
+ * @file     RainbowEncoder.ino
+ * @brief    Controls WS2812 LED color hue dynamically via rotary encoder rotation using HSV conversion
+ * @version  1.0
+ */
+
 #include <Arduino.h>
 #include <rp_help.h>
 
